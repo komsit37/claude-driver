@@ -51,6 +51,68 @@ class BrowserController:
         except:
             pass
     
+    def _clean_html_for_scraping(self, html_content):
+        """Clean HTML content to reduce tokens while preserving scraping-relevant data"""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Remove non-content elements that don't help with scraping
+        tags_to_remove = [
+            'script', 'style', 'noscript', 'meta', 'link', 'base',
+            'object', 'embed', 'applet', 'iframe', 'frame', 'frameset',
+            'map', 'area', 'canvas', 'audio', 'video', 'source', 'track'
+        ]
+        
+        for tag in tags_to_remove:
+            for element in soup.find_all(tag):
+                element.decompose()
+        
+        # Remove comments
+        for comment in soup.find_all(string=lambda text: isinstance(text, soup.__class__.Comment)):
+            comment.extract()
+        
+        # Remove attributes that don't help with scraping but keep important ones
+        important_attrs = {
+            'href', 'src', 'alt', 'title', 'value', 'placeholder', 'name', 
+            'id', 'class', 'type', 'action', 'method', 'for', 'role',
+            'data-testid', 'data-test', 'aria-label', 'aria-labelledby'
+        }
+        
+        for element in soup.find_all():
+            if element.attrs:
+                # Keep only important attributes
+                attrs_to_keep = {}
+                for attr, value in element.attrs.items():
+                    if attr in important_attrs:
+                        # Simplify class attributes - keep only first few classes
+                        if attr == 'class' and isinstance(value, list):
+                            attrs_to_keep[attr] = value[:3]  # Keep max 3 classes
+                        else:
+                            attrs_to_keep[attr] = value
+                element.attrs = attrs_to_keep
+        
+        # Remove empty elements that don't contribute content
+        for element in soup.find_all():
+            if (not element.get_text(strip=True) and 
+                not element.find('img') and 
+                not element.find('input') and 
+                not element.find('button') and
+                not element.name in ['br', 'hr', 'input', 'img', 'area']):
+                element.decompose()
+        
+        # Normalize whitespace
+        cleaned_html = str(soup)
+        # Remove excessive whitespace
+        cleaned_html = re.sub(r'\s+', ' ', cleaned_html)
+        cleaned_html = re.sub(r'>\s+<', '><', cleaned_html)
+        
+        original_size = len(html_content)
+        cleaned_size = len(cleaned_html)
+        reduction_percent = ((original_size - cleaned_size) / original_size) * 100
+        
+        self.logger.info(f"HTML cleaned: {original_size} -> {cleaned_size} bytes ({reduction_percent:.1f}% reduction)")
+        
+        return cleaned_html
+    
     async def start(self):
         """Start browser and return initial status"""
         self.logger.info("Starting browser...")
@@ -72,13 +134,14 @@ class BrowserController:
         self.capture_counter += 1
         self._save_counter()
         
-        # Get HTML content
+        # Get HTML content and clean it for scraping
         html_content = await self.page.content()
+        cleaned_html = self._clean_html_for_scraping(html_content)
         html_filename = f"page_{self.capture_counter:03d}.html"
         html_path = f"./tmp/{html_filename}"
         
         with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+            f.write(cleaned_html)
         
         # Take screenshot (simplified)
         screenshot_filename = f"screenshot_{self.capture_counter:03d}.png"
