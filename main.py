@@ -18,6 +18,7 @@ class BrowserController:
         self.browser = None
         self.page = None
         self.playwright = None
+        self.capture_counter = self._load_counter()
         
         # Setup logging
         logging.basicConfig(
@@ -29,6 +30,26 @@ class BrowserController:
             ]
         )
         self.logger = logging.getLogger(__name__)
+    
+    def _load_counter(self):
+        """Load the persistent capture counter"""
+        counter_file = './tmp/capture_counter.txt'
+        try:
+            if os.path.exists(counter_file):
+                with open(counter_file, 'r') as f:
+                    return int(f.read().strip())
+        except:
+            pass
+        return 0
+    
+    def _save_counter(self):
+        """Save the persistent capture counter"""
+        counter_file = './tmp/capture_counter.txt'
+        try:
+            with open(counter_file, 'w') as f:
+                f.write(str(self.capture_counter))
+        except:
+            pass
     
     async def start(self):
         """Start browser and return initial status"""
@@ -47,16 +68,20 @@ class BrowserController:
         """Capture both HTML and screenshot"""
         self.logger.info("Capturing page state...")
         
+        # Increment counter for new capture
+        self.capture_counter += 1
+        self._save_counter()
+        
         # Get HTML content
         html_content = await self.page.content()
-        html_filename = f"page_{len([f for f in os.listdir('./tmp') if f.startswith('page_')]):03d}.html"
+        html_filename = f"page_{self.capture_counter:03d}.html"
         html_path = f"./tmp/{html_filename}"
         
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
         # Take screenshot (simplified)
-        screenshot_filename = f"screenshot_{len([f for f in os.listdir('./tmp') if f.startswith('screenshot_')]):03d}.png"
+        screenshot_filename = f"screenshot_{self.capture_counter:03d}.png"
         screenshot_path = f"./tmp/{screenshot_filename}"
         
         await self.page.screenshot(path=screenshot_path, full_page=False)  # Viewport only for speed
