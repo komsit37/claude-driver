@@ -1,6 +1,6 @@
 # Browser Interactive Control with Claude Code
 
-A Python-based browser automation system that allows Claude Code to see, analyze, and control web pages interactively through file-based commands and HTML/screenshot analysis.
+A Python-based browser automation system that allows Claude Code to see, analyze, and control web pages interactively through both file-based commands and HTTP API, with comprehensive HTML/screenshot analysis.
 
 ## 🚀 Quick Start
 
@@ -10,17 +10,26 @@ uv sync
 uv run playwright install
 ```
 
-### 2. Start Browser in File Mode
+### 2. Choose Your Mode
+
+#### File Mode (Traditional)
 ```bash
 uv run python main.py file
 ```
+Claude Code sends commands through `./tmp/commands.txt` and views results in `./tmp/results.txt`.
 
-### 3. Control via Claude Code
-Claude Code can now send commands through `./tmp/commands.txt` and view results in `./tmp/results.txt`.
+#### HTTP API Mode (Recommended)
+```bash
+uv run python main.py http
+```
+Interact via HTTP endpoints at `http://localhost:8000` with auto-generated docs at `/docs`.
+
+### 3. Start Controlling
+Choose file mode for simple automation or HTTP API mode for clearer responses and better error handling.
 
 ## 🔄 How Interactive Control Works
 
-### Architecture
+### File Mode Architecture
 ```
 Claude Code   writes  > ./tmp/commands.txt
      |                         |
@@ -31,7 +40,111 @@ reads results            Browser executes
 ./tmp/screenshot_XXX.png <     Screenshots
 ```
 
-### Available Commands
+### HTTP API Mode Architecture
+```
+Claude Code   HTTP POST > http://localhost:8000/navigate
+     |                         |
+JSON response           Browser executes  
+     |                         |
+Structured data   <     HTTP Response
+./tmp/page_XXX.html <  saves   HTML Content
+./tmp/screenshot_XXX.png <     Screenshots
+```
+
+## 📡 HTTP API Mode
+
+### Starting the Server
+```bash
+uv run python main.py http
+```
+Server runs on `http://localhost:8000` with interactive docs at `/docs`.
+
+### API Endpoints
+
+#### Navigation & Interaction
+- **POST /navigate** - Navigate to URL
+  ```bash
+  curl -X POST http://localhost:8000/navigate \
+    -H "Content-Type: application/json" \
+    -d '{"url": "https://amazon.co.jp"}'
+  ```
+
+- **POST /click** - Click at coordinates
+  ```bash
+  curl -X POST http://localhost:8000/click \
+    -H "Content-Type: application/json" \
+    -d '{"x": 100, "y": 200}'
+  ```
+
+- **POST /type** - Type text
+  ```bash
+  curl -X POST http://localhost:8000/type \
+    -H "Content-Type: application/json" \
+    -d '{"text": "hello world"}'
+  ```
+
+- **POST /key** - Press keys
+  ```bash
+  curl -X POST http://localhost:8000/key \
+    -H "Content-Type: application/json" \
+    -d '{"key": "Enter"}'
+  ```
+
+- **POST /scroll** - Scroll page
+  ```bash
+  curl -X POST http://localhost:8000/scroll \
+    -H "Content-Type: application/json" \
+    -d '{"direction": "down", "amount": 5}'
+  ```
+
+#### Page Analysis
+- **POST /capture** - Take screenshot and save HTML
+  ```bash
+  curl -X POST http://localhost:8000/capture
+  ```
+
+- **POST /wait** - Wait for element
+  ```bash
+  curl -X POST http://localhost:8000/wait \
+    -H "Content-Type: application/json" \
+    -d '{"selector": ".product-list", "timeout": 10000}'
+  ```
+
+- **POST /find** - Find elements by text
+  ```bash
+  curl -X POST http://localhost:8000/find \
+    -H "Content-Type: application/json" \
+    -d '{"text": "Add to Cart"}'
+  ```
+
+- **POST /extract** - Smart data extraction
+  ```bash
+  curl -X POST http://localhost:8000/extract \
+    -H "Content-Type: application/json" \
+    -d '{"data_type": "products"}'
+  ```
+
+#### Information Endpoints
+- **GET /links** - Extract all links
+- **GET /forms** - Extract all forms
+- **GET /structure** - Get page structure
+
+#### Command Interface
+- **POST /command** - Execute file-mode commands via API
+  ```bash
+  curl -X POST http://localhost:8000/command \
+    -H "Content-Type: application/json" \
+    -d '{"command": "navigate https://example.com"}'
+  ```
+
+### HTTP API Benefits
+- **Structured Responses**: JSON responses with clear success/error states
+- **Better Error Handling**: Detailed error messages and HTTP status codes
+- **Interactive Documentation**: Auto-generated API docs at `/docs`
+- **Real-time Results**: Immediate JSON responses without file polling
+- **Type Safety**: Request/response validation with Pydantic models
+
+### Available Commands (File Mode)
 
 #### Basic Navigation
 - `navigate <url>` - Navigate to a website
@@ -54,7 +167,7 @@ reads results            Browser executes
 
 ### Example Workflows
 
-#### Basic Navigation
+#### Basic Navigation (File Mode)
 ```bash
 # Navigate to a page
 echo "navigate https://amazon.co.jp" > ./tmp/commands.txt
@@ -66,7 +179,25 @@ echo "wait .product-list" > ./tmp/commands.txt
 echo "scroll down 5" > ./tmp/commands.txt
 ```
 
-#### Smart Data Extraction
+#### Basic Navigation (HTTP API)
+```bash
+# Navigate to a page
+curl -X POST http://localhost:8000/navigate \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://amazon.co.jp"}'
+
+# Wait for specific element to load
+curl -X POST http://localhost:8000/wait \
+  -H "Content-Type: application/json" \
+  -d '{"selector": ".product-list", "timeout": 10000}'
+
+# Scroll to load more content
+curl -X POST http://localhost:8000/scroll \
+  -H "Content-Type: application/json" \
+  -d '{"direction": "down", "amount": 5}'
+```
+
+#### Smart Data Extraction (File Mode)
 ```bash
 # Extract all links on page
 echo "links" > ./tmp/commands.txt
@@ -81,6 +212,29 @@ echo "extract contacts" > ./tmp/commands.txt
 
 # Get page structure overview
 echo "structure" > ./tmp/commands.txt
+```
+
+#### Smart Data Extraction (HTTP API)
+```bash
+# Extract all links on page
+curl http://localhost:8000/links
+
+# Find elements containing specific text
+curl -X POST http://localhost:8000/find \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Add to Cart"}'
+
+# Smart extraction of products/tables/contacts
+curl -X POST http://localhost:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"data_type": "products"}'
+
+curl -X POST http://localhost:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"data_type": "tables"}'
+
+# Get page structure overview
+curl http://localhost:8000/structure
 ```
 
 #### Results Format
@@ -167,9 +321,11 @@ browser-script/
 - **Metadata Rich**: URLs, titles, timestamps for complete context
 
 ### Robust Command Processing
-- **File-based Communication**: No complex APIs, simple file read/write
+- **Dual Interface**: File-based communication OR HTTP API for flexibility
 - **Error Handling**: Comprehensive logging and graceful failure recovery
 - **Real-time Feedback**: Immediate results after each command
+- **API Documentation**: Auto-generated OpenAPI docs at `/docs` for HTTP mode
+- **Structured Responses**: JSON responses with consistent error/success format
 
 ### Browser Integration
 - **Chrome Support**: Uses your installed Chrome browser
@@ -187,7 +343,7 @@ uv run python amazon/extract_order.py
 # Handles: Deduplication, product extraction, price analysis
 ```
 
-### 2. Multi-step Authentication
+### 2. Multi-step Authentication (File Mode)
 ```bash
 # Claude Code can handle complex login flows:
 # 1. Navigate to login page
@@ -197,13 +353,50 @@ uv run python amazon/extract_order.py
 # 5. Extract authenticated data
 ```
 
-### 3. Dynamic Content Monitoring
+#### Multi-step Authentication (HTTP API)
+```bash
+# 1. Navigate to login page
+curl -X POST http://localhost:8000/navigate \
+  -d '{"url": "https://example.com/login"}'
+
+# 2. Fill username field
+curl -X POST http://localhost:8000/click -d '{"x": 200, "y": 100}'
+curl -X POST http://localhost:8000/type -d '{"text": "username"}'
+
+# 3. Fill password and submit
+curl -X POST http://localhost:8000/key -d '{"key": "Tab"}'
+curl -X POST http://localhost:8000/type -d '{"text": "password"}'
+curl -X POST http://localhost:8000/key -d '{"key": "Enter"}'
+
+# 4. Wait for protected content
+curl -X POST http://localhost:8000/wait \
+  -d '{"selector": ".dashboard", "timeout": 5000}'
+
+# 5. Extract authenticated data
+curl -X POST http://localhost:8000/extract -d '{"data_type": "auto"}'
+```
+
+### 3. Dynamic Content Monitoring (File Mode)
 ```bash
 # Monitor pages for changes:
 # 1. Take baseline screenshot
 # 2. Refresh page periodically  
 # 3. Compare visual/content changes
 # 4. Alert on significant updates
+```
+
+#### Dynamic Content Monitoring (HTTP API)
+```bash
+# 1. Take baseline screenshot
+curl -X POST http://localhost:8000/capture
+
+# 2. Refresh and capture periodically
+curl -X POST http://localhost:8000/key -d '{"key": "F5"}'
+curl -X POST http://localhost:8000/wait -d '{"selector": "body", "timeout": 5000}'
+curl -X POST http://localhost:8000/capture
+
+# 3. Extract current data for comparison
+curl -X POST http://localhost:8000/extract -d '{"data_type": "auto"}'
 ```
 
 ## =' Configuration
@@ -214,11 +407,17 @@ uv run python amazon/extract_order.py
 - **Network Waiting**: `wait_until='networkidle'` for SPA compatibility
 
 ### File Locations
-- **Commands**: `./tmp/commands.txt` - Claude Code writes here
-- **Results**: `./tmp/results.txt` - Browser updates here  
-- **HTML**: `./tmp/page_XXX.html` - Full page content
-- **Screenshots**: `./tmp/screenshot_XXX.png` - Visual state
-- **Logs**: `./tmp/browser.log` - Detailed execution logs
+- **Commands**: `./tmp/commands.txt` - Claude Code writes here (File Mode)
+- **Results**: `./tmp/results.txt` - Browser updates here (File Mode)
+- **HTML**: `./tmp/page_XXX.html` - Full page content (Both modes)
+- **Screenshots**: `./tmp/screenshot_XXX.png` - Visual state (Both modes)
+- **Logs**: `./tmp/browser.log` - Detailed execution logs (Both modes)
+
+### HTTP API Configuration
+- **Server**: `http://localhost:8000` - Main API endpoint
+- **Documentation**: `http://localhost:8000/docs` - Interactive API docs
+- **Health Check**: `http://localhost:8000/health` - Server status
+- **Content Types**: JSON requests/responses with automatic validation
 
 ## ⚠️ Important Notes
 
@@ -282,7 +481,7 @@ uv run python amazon/extract_order.py
 - **Smart Timeouts**: Configurable wait times for different scenarios
 - **Memory Efficient**: Limits and filtering to handle large pages
 
-### New Commands for Advanced Scraping
+### Advanced Scraping Commands (File Mode)
 ```bash
 # Scroll to load infinite scroll content
 echo "scroll down 10" > ./tmp/commands.txt
@@ -307,6 +506,46 @@ echo "links" > ./tmp/commands.txt
 
 # Analyze all forms on page
 echo "forms" > ./tmp/commands.txt
+```
+
+### Advanced Scraping Commands (HTTP API)
+```bash
+# Scroll to load infinite scroll content
+curl -X POST http://localhost:8000/scroll \
+  -H "Content-Type: application/json" \
+  -d '{"direction": "down", "amount": 10}'
+
+# Wait for AJAX content to load
+curl -X POST http://localhost:8000/wait \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "[data-testid=\"product-grid\"]", "timeout": 10000}'
+
+# Find buttons by text and get coordinates
+curl -X POST http://localhost:8000/find \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Add to Cart"}'
+
+# Extract structured data automatically
+curl -X POST http://localhost:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"data_type": "auto"}'        # Auto-detect all types
+
+curl -X POST http://localhost:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"data_type": "products"}'    # Focus on products
+
+curl -X POST http://localhost:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"data_type": "tables"}'      # Focus on tables
+
+# Get complete page structure
+curl http://localhost:8000/structure
+
+# Extract all navigation links
+curl http://localhost:8000/links
+
+# Analyze all forms on page
+curl http://localhost:8000/forms
 ```
 
 ---

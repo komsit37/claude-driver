@@ -1,6 +1,6 @@
 # CLAUDE.md - Browser Interactive Control System
 
-This repository contains a Python-based browser automation system that allows Claude Code to interactively control web browsers through file-based communication. The system captures both HTML content and screenshots for comprehensive web analysis and automation.
+This repository contains a Python-based browser automation system that allows Claude Code to interactively control web browsers through both HTTP API and file-based communication. The system captures both HTML content and screenshots for comprehensive web analysis and automation.
 
 ## 🚀 Quick Start Commands
 
@@ -10,7 +10,10 @@ This repository contains a Python-based browser automation system that allows Cl
 uv sync
 uv run playwright install
 
-# Start browser in file-based control mode (recommended for Claude Code)
+# Start browser in HTTP API mode (recommended - better error handling)
+uv run python main.py http
+
+# Start browser in file-based control mode (legacy)
 uv run python main.py file
 
 # Start browser in interactive mode (for manual testing)
@@ -42,12 +45,19 @@ rm -rf ./tmp/*
    - Smart state capture: HTML + optimized screenshots for Claude Code analysis
    - Comprehensive command processing with 15+ automation commands
 
-2. **File-Based Communication System**
-   - `./tmp/commands.txt` - Claude Code writes commands here
-   - `./tmp/results.txt` - Browser execution results in JSON format
-   - `./tmp/page_XXX.html` - Complete HTML content capture
-   - `./tmp/screenshot_XXX.png` - Visual page state (auto-resized to 800px width)
-   - `./tmp/browser.log` - Detailed execution and debugging logs
+2. **Dual Communication Interfaces**
+   - **HTTP API Mode** (Recommended): RESTful endpoints with structured responses
+     - `POST http://localhost:8000/navigate` - Navigation commands
+     - `POST http://localhost:8000/click` - Interaction commands  
+     - `GET http://localhost:8000/status` - Server status and current page info
+     - Auto-generated docs at `http://localhost:8000/docs`
+   - **File-Based Mode** (Legacy): File polling system
+     - `./tmp/commands.txt` - Claude Code writes commands here
+     - `./tmp/results.txt` - Browser execution results in JSON format
+   - **Shared State Files**: Available in both modes
+     - `./tmp/page_XXX.html` - Complete HTML content capture (cleaned for token efficiency)
+     - `./tmp/screenshot_XXX.png` - Visual page state (auto-resized to 800px width)
+     - `./tmp/browser.log` - Detailed execution and debugging logs
 
 3. **Amazon Integration Example** (`amazon/` folder)
    - `extract_order.py` - Advanced order data extraction with deduplication
@@ -65,7 +75,62 @@ rm -rf ./tmp/*
 
 ## 🎯 Common Use Cases & Commands
 
-### Web Navigation & Analysis
+### HTTP API Commands (Recommended)
+
+#### Web Navigation & Analysis
+```bash
+# Navigate to website
+curl -X POST http://localhost:8000/navigate -H "Content-Type: application/json" -d '{"url": "https://example.com"}'
+
+# Capture current page state
+curl -X POST http://localhost:8000/capture
+
+# Scroll to load more content
+curl -X POST http://localhost:8000/scroll -H "Content-Type: application/json" -d '{"direction": "down", "amount": 5}'
+
+# Wait for dynamic content
+curl -X POST http://localhost:8000/wait -H "Content-Type: application/json" -d '{"selector": ".product-list", "timeout": 10000}'
+
+# Check server status and current page
+curl http://localhost:8000/status
+```
+
+#### Smart Data Extraction
+```bash
+# Auto-detect and extract all data types
+curl -X POST http://localhost:8000/extract -H "Content-Type: application/json" -d '{"data_type": "auto"}'
+
+# Focus on specific data types
+curl -X POST http://localhost:8000/extract -H "Content-Type: application/json" -d '{"data_type": "products"}'
+curl -X POST http://localhost:8000/extract -H "Content-Type: application/json" -d '{"data_type": "tables"}'
+curl -X POST http://localhost:8000/extract -H "Content-Type: application/json" -d '{"data_type": "contacts"}'
+
+# Get page structure overview
+curl http://localhost:8000/structure
+
+# Extract all links
+curl http://localhost:8000/links
+
+# Find elements by text content
+curl -X POST http://localhost:8000/find -H "Content-Type: application/json" -d '{"text": "Add to Cart"}'
+```
+
+#### Interactive Control
+```bash
+# Click at specific coordinates
+curl -X POST http://localhost:8000/click -H "Content-Type: application/json" -d '{"x": 400, "y": 300}'
+
+# Type text in focused field
+curl -X POST http://localhost:8000/type -H "Content-Type: application/json" -d '{"text": "Hello World"}'
+
+# Press keyboard keys
+curl -X POST http://localhost:8000/key -H "Content-Type: application/json" -d '{"key": "Enter"}'
+curl -X POST http://localhost:8000/key -H "Content-Type: application/json" -d '{"key": "Tab"}'
+```
+
+### File-Based Commands (Legacy)
+
+#### Web Navigation & Analysis
 ```bash
 # Navigate to website
 echo "navigate https://example.com" > ./tmp/commands.txt
@@ -161,16 +226,26 @@ Claude Code can spawn sub-agents for specialized tasks:
 - **Task delegation**: `Task` tool allows spawning concurrent agents for complex multi-step workflows
 
 ### Effective Workflow
+
+#### HTTP API Mode (Recommended)
+1. **Check server status**: `curl http://localhost:8000/status`
+2. **Always capture state** after navigation: `curl -X POST http://localhost:8000/capture`
+3. **Use smart extraction** for unknown pages: `curl -X POST http://localhost:8000/extract -d '{"data_type": "auto"}'`
+4. **Find elements by text** for reliable clicking: `curl -X POST http://localhost:8000/find -d '{"text": "Login"}'`
+5. **Wait for dynamic content** before proceeding: `curl -X POST http://localhost:8000/wait -d '{"selector": "[data-loaded=true]"}'`
+6. **Delegate analysis tasks**: Use Gemini sub-agents for processing large HTML files or summarizing extraction results
+
+#### File-Based Mode (Legacy)
 1. **Always capture state** after navigation: `echo "capture" > ./tmp/commands.txt`
 2. **Use smart extraction** for unknown pages: `echo "extract auto" > ./tmp/commands.txt`
 3. **Find elements by text** for reliable clicking: `echo "find Login" > ./tmp/commands.txt`
 4. **Wait for dynamic content** before proceeding: `echo "wait [data-loaded='true']" > ./tmp/commands.txt`
-5. **Delegate analysis tasks**: Use Gemini sub-agents for processing large HTML files or summarizing extensive extraction results
 
 ### Reading Results
-- Check `./tmp/results.txt` for JSON-formatted command results
+- **HTTP API**: Direct JSON responses with structured data and error handling
+- **File Mode**: Check `./tmp/results.txt` for JSON-formatted command results
 - Screenshots auto-resized to 800px width for optimal Claude Code analysis
-- HTML files contain complete page source for deep content analysis
+- HTML files contain cleaned page source for efficient token usage
 - Logs provide detailed execution context for debugging
 
 ### Advanced Automation Patterns
@@ -183,6 +258,9 @@ Claude Code can spawn sub-agents for specialized tasks:
 
 ### Core Dependencies (pyproject.toml)
 - `playwright>=1.40.0` - Browser automation engine
+- `fastapi>=0.104.0` - HTTP API framework for RESTful endpoints
+- `uvicorn>=0.24.0` - ASGI server for HTTP API mode
+- `pydantic>=2.5.0` - Data validation and serialization
 - `pillow>=10.0.0` - Image processing for screenshot optimization
 - `pyautogui>=0.9.54` - Additional GUI automation capabilities
 - `beautifulsoup4>=4.12.0` - HTML parsing and data extraction
@@ -202,10 +280,13 @@ Claude Code can spawn sub-agents for specialized tasks:
 ## 💡 Troubleshooting & Debugging
 
 ### Common Issues
-- **EOF errors in interactive mode**: Use file mode instead (`python main.py file`)
+- **Connection refused**: Ensure HTTP API server is running (`python main.py http`)
+- **EOF errors in interactive mode**: Use HTTP API mode instead (`python main.py http`)
+- **Port already in use**: Kill existing server or change port in main.py
 - **Blank screenshots**: Check Chrome browser installation and permissions
 - **Element not found**: Use `find` command to locate elements by text first
 - **AJAX content missing**: Use `wait` command with appropriate selector
+- **HTTP 503 errors**: Browser not initialized - restart server
 
 ### Debug Resources
 - `./tmp/browser.log` - Detailed execution logs with timestamps

@@ -9,8 +9,13 @@ import time
 import json
 import logging
 from datetime import datetime
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import re
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, Union
+import uvicorn
 
 
 class BrowserController:
@@ -67,7 +72,7 @@ class BrowserController:
                 element.decompose()
         
         # Remove comments
-        for comment in soup.find_all(string=lambda text: isinstance(text, soup.__class__.Comment)):
+        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
             comment.extract()
         
         # Remove attributes that don't help with scraping but keep important ones
@@ -521,6 +526,296 @@ class BrowserController:
             await self.playwright.stop()
 
 
+# Pydantic models for HTTP API
+class CommandRequest(BaseModel):
+    command: str
+
+class NavigateRequest(BaseModel):
+    url: str
+
+class ClickRequest(BaseModel):
+    x: int
+    y: int
+
+class TypeRequest(BaseModel):
+    text: str
+
+class KeyRequest(BaseModel):
+    key: str
+
+class ScrollRequest(BaseModel):
+    direction: str = "down"
+    amount: int = 3
+
+class WaitRequest(BaseModel):
+    selector: str
+    timeout: int = 10000
+
+class FindRequest(BaseModel):
+    text: str
+
+class ExtractRequest(BaseModel):
+    data_type: str = "auto"
+
+
+# Global browser controller instance
+browser_controller = None
+
+# FastAPI app
+app = FastAPI(title="Browser Control API", version="1.0.0")
+
+@app.on_event("startup")
+async def startup_event():
+    global browser_controller
+    os.makedirs("./tmp", exist_ok=True)
+    browser_controller = BrowserController()
+    await browser_controller.start()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global browser_controller
+    if browser_controller:
+        await browser_controller.close()
+
+@app.get("/")
+async def root():
+    return {"message": "Browser Control API", "status": "running", "docs": "/docs"}
+
+@app.get("/status")
+async def get_status():
+    if not browser_controller or not browser_controller.page:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        url = browser_controller.page.url
+        title = await browser_controller.page.title()
+        return {
+            "status": "ready",
+            "url": url,
+            "title": title,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting status: {str(e)}")
+
+@app.post("/capture")
+async def capture_state():
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.capture_state()
+        return {
+            "status": "success",
+            "message": "State captured",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error capturing state: {str(e)}")
+
+@app.post("/navigate")
+async def navigate(request: NavigateRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.navigate(request.url)
+        return {
+            "status": "success",
+            "message": f"Navigated to {request.url}",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error navigating: {str(e)}")
+
+@app.post("/click")
+async def click(request: ClickRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.click(request.x, request.y)
+        return {
+            "status": "success",
+            "message": f"Clicked at ({request.x}, {request.y})",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clicking: {str(e)}")
+
+@app.post("/type")
+async def type_text(request: TypeRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.type_text(request.text)
+        return {
+            "status": "success",
+            "message": f"Typed: {request.text}",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error typing: {str(e)}")
+
+@app.post("/key")
+async def press_key(request: KeyRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.press_key(request.key)
+        return {
+            "status": "success",
+            "message": f"Pressed {request.key}",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error pressing key: {str(e)}")
+
+@app.post("/scroll")
+async def scroll(request: ScrollRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.scroll(request.direction, request.amount)
+        return {
+            "status": "success",
+            "message": f"Scrolled {request.direction} by {request.amount}",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error scrolling: {str(e)}")
+
+@app.post("/wait")
+async def wait_for_element(request: WaitRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.wait_for_element(request.selector, request.timeout)
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return {
+            "status": "success",
+            "message": f"Element found: {request.selector}",
+            "timestamp": time.time(),
+            **result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error waiting for element: {str(e)}")
+
+@app.post("/find")
+async def find_elements(request: FindRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.find_elements_by_text(request.text)
+        return {
+            "status": "success",
+            "message": f"Found {result['count']} elements",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error finding elements: {str(e)}")
+
+@app.get("/links")
+async def extract_links():
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.extract_links()
+        return {
+            "status": "success",
+            "message": f"Extracted {result['count']} links",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting links: {str(e)}")
+
+@app.get("/forms")
+async def extract_forms():
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.extract_forms()
+        return {
+            "status": "success",
+            "message": f"Found {result['count']} forms",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting forms: {str(e)}")
+
+@app.get("/structure")
+async def get_page_structure():
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.get_page_structure()
+        return {
+            "status": "success",
+            "message": "Page structure analyzed",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing structure: {str(e)}")
+
+@app.post("/extract")
+async def smart_extract(request: ExtractRequest):
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await browser_controller.smart_extract(request.data_type)
+        product_count = len(result.get('products', []))
+        table_count = len(result.get('tables', []))
+        return {
+            "status": "success",
+            "message": f"Smart extraction complete - {product_count} products, {table_count} tables",
+            "timestamp": time.time(),
+            **result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting data: {str(e)}")
+
+@app.post("/command")
+async def execute_command_endpoint(request: CommandRequest):
+    """Execute a raw command string (for backward compatibility)"""
+    if not browser_controller:
+        raise HTTPException(status_code=503, detail="Browser not initialized")
+    
+    try:
+        result = await execute_command(browser_controller, request.command)
+        result["timestamp"] = time.time()
+        
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error executing command: {str(e)}")
+
+
 async def execute_command(controller, command):
     """Execute a single command and return result"""
     command = command.strip()
@@ -703,12 +998,40 @@ async def interactive_browser():
         print("Browser closed")
 
 
+async def http_api_server():
+    """HTTP API server for browser control"""
+    print("Starting HTTP API server...")
+    print("API Documentation: http://localhost:8000/docs")
+    print("API Status: http://localhost:8000/status")
+    print("Available endpoints:")
+    print("  POST /navigate - Navigate to URL")
+    print("  POST /click - Click at coordinates")
+    print("  POST /type - Type text")
+    print("  POST /key - Press key")
+    print("  POST /scroll - Scroll page")
+    print("  POST /capture - Capture state")
+    print("  POST /wait - Wait for element")
+    print("  POST /find - Find elements by text")
+    print("  POST /extract - Smart data extraction")
+    print("  GET /links - Extract links")
+    print("  GET /forms - Extract forms")
+    print("  GET /structure - Get page structure")
+    print("  POST /command - Execute raw command")
+    print("\nPress Ctrl+C to stop the server")
+    
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 def main():
     import sys
     mode = sys.argv[1] if len(sys.argv) > 1 else "interactive"
     
     if mode == "file":
         asyncio.run(file_based_browser())
+    elif mode == "http" or mode == "api":
+        asyncio.run(http_api_server())
     else:
         asyncio.run(interactive_browser())
 
