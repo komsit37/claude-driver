@@ -259,7 +259,7 @@ def extract_all_order_details(html_file_path):
     return result
 
 def main():
-    tmp_dir = '../tmp'
+    tmp_dir = '../../tmp'
     output_file = 'outputs/orders.json'
     
     try:

@@ -1,7 +1,7 @@
 [project]
-name = "browser-script"
-version = "0.1.0"
-description = "Add your description here"
+name = "claude-driver"
+version = "1.0.0"
+description = "Browser automation toolkit designed for AI-human collaboration"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
