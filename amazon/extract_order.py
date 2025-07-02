@@ -6,7 +6,25 @@ Extract first order details from Amazon orders page HTML
 from bs4 import BeautifulSoup
 import json
 import re
+import os
+import glob
 from datetime import datetime
+
+def find_latest_html_file(tmp_dir):
+    """Find the latest HTML file in the tmp directory based on modification time"""
+    html_pattern = os.path.join(tmp_dir, "page_*.html")
+    html_files = glob.glob(html_pattern)
+    
+    if not html_files:
+        raise FileNotFoundError(f"No HTML files found matching pattern: {html_pattern}")
+    
+    # Sort by modification time (newest first)
+    html_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    
+    latest_file = html_files[0]
+    print(f"Found {len(html_files)} HTML files, using latest: {os.path.basename(latest_file)}")
+    
+    return latest_file
 
 def extract_all_order_details(html_file_path):
     """Extract details of all orders from Amazon orders page HTML"""
@@ -241,13 +259,21 @@ def extract_all_order_details(html_file_path):
     return result
 
 def main():
-    html_file = '/Users/pkomsit/code/python/browser-script/tmp/page_003.html'
-    output_file = '/Users/pkomsit/code/python/browser-script/amazon/orders.json'
+    tmp_dir = '../tmp'
+    output_file = 'outputs/orders.json'
     
-    print("Extracting all order details from:", html_file)
-    print("=" * 60)
-    
-    result = extract_all_order_details(html_file)
+    try:
+        html_file = find_latest_html_file(tmp_dir)
+        print("Extracting all order details from:", html_file)
+        print("=" * 60)
+        
+        result = extract_all_order_details(html_file)
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+        return
+    except Exception as e:
+        print(f"❌ Error finding or processing HTML file: {e}")
+        return
     
     # Save to JSON file
     with open(output_file, 'w', encoding='utf-8') as f:

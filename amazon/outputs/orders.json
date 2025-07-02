@@ -1,0 +1,70 @@
+{
+  "page_title": "Your Orders",
+  "containers_found": 23,
+  "total_orders_found": 4,
+  "orders": [
+    {
+      "order_id": "249-1010155-5382207",
+      "order_date": "January 21, 2024",
+      "total_amount": "¥1,541",
+      "all_prices": [
+        "¥766",
+        "¥1,541",
+        "¥4,198"
+      ],
+      "container_index": 5,
+      "extraction_timestamp": "2025-07-03T05:17:18.368541",
+      "products": [
+        "BBT H060518 Filter H060509 H060511 Anti-Bacterial Vaporizer Filter Humidifier Filter Replacement Filter Pack of 2",
+        "Morinaga Milk Industry Co. Hagukumim Baby Formula, Eco Easy Pack",
+        "Land Cotton Fabric Softener Large Capacity kurasikkuhuro-raru Refill 960ml , , ,"
+      ],
+      "status": "delivered"
+    },
+    {
+      "order_id": "503-5321644-4500649",
+      "order_date": "January 11, 2024",
+      "total_amount": "¥4,198",
+      "all_prices": [
+        "¥4,198"
+      ],
+      "container_index": 0,
+      "extraction_timestamp": "2025-07-03T05:17:18.368463",
+      "products": [
+        "Morinaga Milk Industry Co. Hagukumim Baby Formula, Eco Easy Pack"
+      ],
+      "status": "delivered"
+    },
+    {
+      "order_id": "503-4468139-8338248",
+      "order_date": "January 11, 2024",
+      "total_amount": "¥0",
+      "container_index": 7,
+      "extraction_timestamp": "2025-07-03T05:17:18.368604",
+      "products": [
+        "Top Super Nanox Automatic Loading Washing Machine Dedicated Laundry Detergent, Liquid Refill, 29.7 oz (850 g), Includes Leaflet"
+      ],
+      "status": "delivered"
+    },
+    {
+      "order_id": "503-9163913-1005450",
+      "order_date": "January 11, 2024",
+      "total_amount": "¥766",
+      "all_prices": [
+        "¥766"
+      ],
+      "container_index": 11,
+      "extraction_timestamp": "2025-07-03T05:17:18.369242",
+      "products": [
+        "Land Cotton Fabric Softener Large Capacity kurasikkuhuro-raru Refill 960ml , , ,"
+      ],
+      "status": "delivered"
+    }
+  ],
+  "extraction_metadata": {
+    "total_containers_analyzed": 23,
+    "orders_deduplicated": true,
+    "extraction_date": "2025-07-03T05:17:18.369748",
+    "source_file": "../tmp/page_018.html"
+  }
+}
