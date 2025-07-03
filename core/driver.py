@@ -55,21 +55,21 @@ class BrowserController:
         self.playwright = None
         self.capture_counter = self._load_counter()
 
-        # Setup logging with session organization
-        session_id = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        log_dir = f"./sessions/{session_id}"
-        os.makedirs(log_dir, exist_ok=True)
+        # Setup session ID that persists throughout browser session
+        self.session_id = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        session_dir = f"./sessions/{self.session_id}"
+        os.makedirs(session_dir, exist_ok=True)
 
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(levelname)s - %(message)s",
             handlers=[
-                logging.FileHandler(f"{log_dir}/session.log"),
+                logging.FileHandler(f"{session_dir}/session.log"),
                 logging.StreamHandler(),
             ],
         )
         self.logger = logging.getLogger(__name__)
-        self.session_dir = log_dir
+        self.session_dir = session_dir
 
     def _load_counter(self):
         """Load the persistent capture counter"""
@@ -112,17 +112,17 @@ class BrowserController:
             ],
         )
 
-        self.page = await self.browser.new_page()
+        # Create context with user agent
+        context = await self.browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        
+        self.page = await context.new_page()
 
         # Get screen dimensions and set to full height
         screen_size = pyautogui.size()
         await self.page.set_viewport_size(
             {"width": 1280, "height": screen_size.height - 100}
-        )
-
-        # Set user agent to look more human
-        await self.page.set_user_agent(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
         self.logger.info("Browser started successfully")
@@ -142,8 +142,7 @@ class BrowserController:
 
         # Create session directory structure based on URL
         base_url = self._get_base_url(url)
-        session_id = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        capture_dir = f"./sessions/{session_id}/{base_url}"
+        capture_dir = f"./sessions/{self.session_id}/{base_url}"
         os.makedirs(capture_dir, exist_ok=True)
 
         # Create filenames within session/base_url directory
@@ -297,10 +296,10 @@ class BrowserController:
         try:
             with Image.open(screenshot_path) as img:
                 # Resize to reasonable width for analysis
-                if img.width > 800:
-                    ratio = 800 / img.width
+                if img.width > 1280:
+                    ratio = 1280 / img.width
                     new_height = int(img.height * ratio)
-                    img = img.resize((800, new_height), Image.Resampling.LANCZOS)
+                    img = img.resize((1280, new_height), Image.Resampling.LANCZOS)
                     img.save(screenshot_path, optimize=True, quality=85)
         except Exception as e:
             self.logger.warning(f"Screenshot optimization failed: {e}")
