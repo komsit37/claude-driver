@@ -324,6 +324,51 @@ class BrowserController:
             self.logger.error(f"Navigation failed: {e}")
             raise Exception(f"Navigation failed: {e}")
 
+    async def click_element(self, selector, wait_for_load=True):
+        """Click an element by CSS selector"""
+        if not self.page:
+            raise Exception("Browser not started")
+        
+        try:
+            # Wait for element to be visible and clickable
+            await self.page.wait_for_selector(selector, timeout=10000)
+            
+            # Click the element
+            await self.page.click(selector)
+            
+            if wait_for_load:
+                # Wait a moment for any dynamic content to load
+                await asyncio.sleep(2)
+            
+            self.logger.info(f"Clicked element: {selector}")
+            return {"status": "success", "selector": selector}
+            
+        except Exception as e:
+            self.logger.error(f"Click failed for {selector}: {e}")
+            raise Exception(f"Click failed for {selector}: {e}")
+    
+    async def select_option(self, selector, value):
+        """Select an option from a dropdown by value"""
+        if not self.page:
+            raise Exception("Browser not started")
+        
+        try:
+            # Wait for select element
+            await self.page.wait_for_selector(selector, timeout=10000)
+            
+            # Select the option
+            await self.page.select_option(selector, value)
+            
+            # Wait for page to update
+            await asyncio.sleep(2)
+            
+            self.logger.info(f"Selected option {value} from {selector}")
+            return {"status": "success", "selector": selector, "value": value}
+            
+        except Exception as e:
+            self.logger.error(f"Select failed for {selector} with value {value}: {e}")
+            raise Exception(f"Select failed for {selector} with value {value}: {e}")
+
     async def close(self):
         """Clean up browser resources"""
         if self.browser:
@@ -348,6 +393,14 @@ class NavigateRequest(BaseModel):
     url: str
     wait_load: Optional[bool] = True
 
+class ClickRequest(BaseModel):
+    selector: str
+    wait_for_load: Optional[bool] = True
+
+class SelectRequest(BaseModel):
+    selector: str
+    value: str
+
 
 @app.get("/")
 async def root():
@@ -360,6 +413,8 @@ async def root():
             "GET /status": "Check browser status and get workflow guidance",
             "POST /navigate": "Navigate to URL",
             "POST /capture": "Capture current page state",
+            "POST /click": "Click an element by CSS selector",
+            "POST /select": "Select option from dropdown",
             "GET /docs": "API documentation",
         },
     }
@@ -423,6 +478,28 @@ async def capture():
             "5. Test extraction on small sample first",
         ]
 
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/click")
+async def click_element(request: ClickRequest):
+    """Click an element by CSS selector"""
+    try:
+        result = await controller.click_element(request.selector, request.wait_for_load)
+        result.update(get_claude_workflow_reminder())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/select")
+async def select_option(request: SelectRequest):
+    """Select an option from dropdown by value"""
+    try:
+        result = await controller.select_option(request.selector, request.value)
+        result.update(get_claude_workflow_reminder())
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
