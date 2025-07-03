@@ -25,6 +25,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
+from urllib.parse import urlparse
 
 
 def get_claude_workflow_reminder():
@@ -87,6 +88,18 @@ class BrowserController:
         with open("./tmp/capture_counter.txt", "w") as f:
             f.write(str(self.capture_counter))
 
+    def _get_base_url(self, url):
+        """Extract base URL for directory naming"""
+        try:
+            parsed = urlparse(url)
+            # Clean domain name for file system
+            base_url = parsed.netloc.replace("www.", "").replace(":", "_")
+            # Remove any invalid characters for directory names
+            base_url = re.sub(r'[^\w\-_.]', '_', base_url)
+            return base_url if base_url else "unknown"
+        except Exception:
+            return "unknown"
+
     async def start_browser(self):
         """Start the browser instance"""
         self.playwright = await async_playwright().start()
@@ -127,10 +140,16 @@ class BrowserController:
         title = await self.page.title()
         timestamp = time.time()
 
-        # Create filenames
-        html_file = f"./tmp/page_{self.capture_counter:03d}.html"
-        screenshot_file = f"./tmp/screenshot_{self.capture_counter:03d}.png"
-        analysis_file = f"./tmp/page_{self.capture_counter:03d}_analysis.json"
+        # Create session directory structure based on URL
+        base_url = self._get_base_url(url)
+        session_id = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        capture_dir = f"./sessions/{session_id}/{base_url}"
+        os.makedirs(capture_dir, exist_ok=True)
+
+        # Create filenames within session/base_url directory
+        html_file = f"{capture_dir}/page_{self.capture_counter:03d}.html"
+        screenshot_file = f"{capture_dir}/screenshot_{self.capture_counter:03d}.png"
+        analysis_file = f"{capture_dir}/page_{self.capture_counter:03d}_analysis.json"
 
         # Get HTML content
         html_content = await self.page.content()
@@ -160,6 +179,7 @@ class BrowserController:
             "url": url,
             "title": title,
             "timestamp": timestamp,
+            "session_dir": capture_dir,
         }
 
         # Add Claude workflow guidance
@@ -359,10 +379,10 @@ async def get_status():
         except:
             pass
 
-    # Find latest captures
+    # Find latest captures from sessions directory
     import glob
 
-    html_files = glob.glob("./tmp/page_*.html")
+    html_files = glob.glob("./sessions/*/*/page_*.html")
     latest_capture = None
     if html_files:
         latest_capture = max(html_files, key=os.path.getmtime)
