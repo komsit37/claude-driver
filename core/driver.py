@@ -103,7 +103,10 @@ class BrowserController:
         )
         
         self.page = await self.browser.new_page()
-        await self.page.set_viewport_size({"width": 1280, "height": 720})
+        
+        # Get screen dimensions and set to full height
+        screen_size = pyautogui.size()
+        await self.page.set_viewport_size({"width": 1280, "height": screen_size.height - 100})
         
         # Set user agent to look more human
         await self.page.set_user_agent(
